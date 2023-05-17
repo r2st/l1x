@@ -1,0 +1,10 @@
+/target
+/account/target
+/account/Cargo.lock
+/account/db_path
+/mempool/target
+/mempool/Cargo.lock
+/mempool/db_path
+/primitives/target
+/primitives/Cargo.lock
+Cargo.lock
