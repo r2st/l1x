@@ -164,6 +164,31 @@ mod tests {
     }
 
     #[test]
+    fn test_insufficient_balance() {
+        // Create a transaction with an amount greater than the account balance
+        let db_dir = TempDir::new().unwrap();
+        let db_path = db_dir.path().to_str().unwrap();
+        let mempool = Mempool::new(100, 1000, db_path);
+        let sender: Address = [1u8; 32].into();
+        let recipient: Address = [2u8; 32].into();
+        let sec_bytes = &[1u8; SECRET_KEY_LENGTH];
+        let signing_key = SigningKey::from_bytes(sec_bytes);
+        create_account(sender, 5000, db_path);
+        let transaction = Transaction {
+            sender: sender.clone(),
+            recipient: recipient.clone(),
+            amount: 10000,
+            gas: 100,
+            signature: sign(sender.clone(), recipient.clone(), 10000, &signing_key),
+            verifying_key: signing_key.verifying_key(),
+        };
+        assert_eq!(
+            mempool.add_transaction(transaction).err().unwrap().to_string(),
+            "Insufficient balance to cover the transaction"
+        );
+    }
+
+    #[test]
     fn test_mempool_remove_transaction() {
         let db_dir = TempDir::new().unwrap();
         let db_path = db_dir.path().to_str().unwrap();

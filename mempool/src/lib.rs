@@ -76,9 +76,10 @@ impl<'a> Mempool<'a> {
 
         let account = account_state.get_account(transaction.sender.clone()).unwrap();
 
-        // Check if the account has sufficient balance for gas
-        if account.balance < transaction.gas {
-            return Err(anyhow!("Insufficient balance to cover gas"));
+        // Check if the account has sufficient balance for the transaction amount and gas
+        let total_cost = transaction.amount + transaction.gas;
+        if account.balance < total_cost {
+            return Err(anyhow!("Insufficient balance to cover the transaction"));
         }
 
         // Add the transaction to the mempool
