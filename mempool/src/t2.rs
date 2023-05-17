@@ -34,7 +34,7 @@ mod tests {
     fn test_mempool_add_transaction() {
         let db_dir = TempDir::new().unwrap();
         let db_path = db_dir.path().to_str().unwrap();
-        let mempool = Mempool::new(100, 1000, db_path, 10, 60);
+        let mempool = Mempool::new(100, 1000, db_path);
         let sender: Address = [1u8; 32].into();
         let recipient: Address = [2u8; 32].into();
         let sec_bytes = &[1u8; SECRET_KEY_LENGTH];
@@ -55,7 +55,7 @@ mod tests {
     fn test_mempool_add_transaction_invalid_sender() {
         let db_dir = TempDir::new().unwrap();
         let db_path = db_dir.path().to_str().unwrap();
-        let mempool = Mempool::new(100, 1000, db_path, 10, 60);
+        let mempool = Mempool::new(100, 1000, db_path);
         let sender: Address = [1u8; 32].into();
         let recipient: Address = [2u8; 32].into();
         let sec_bytes = &[1u8; SECRET_KEY_LENGTH];
@@ -78,7 +78,7 @@ mod tests {
     fn test_mempool_add_transaction_full() {
         let db_dir = TempDir::new().unwrap();
         let db_path = db_dir.path().to_str().unwrap();
-        let mempool = Mempool::new(1, 1000, db_path, 10, 60);
+        let mempool = Mempool::new(1, 1000, db_path);
         let sender1: Address = [1u8; 32].into();
         let recipient1: Address = [2u8; 32].into();
         let sec_bytes1 = &[1u8; SECRET_KEY_LENGTH];
@@ -117,7 +117,7 @@ mod tests {
     fn test_mempool_add_transaction_gas_exceeds_limit() {
         let db_dir = TempDir::new().unwrap();
         let db_path = db_dir.path().to_str().unwrap();
-        let mempool = Mempool::new(100, 1000, db_path, 10, 60);
+        let mempool = Mempool::new(100, 1000, db_path);
         let sender: Address = [1u8; 32].into();
         let recipient: Address = [2u8; 32].into();
         let sec_bytes = &[1u8; SECRET_KEY_LENGTH];
@@ -141,7 +141,7 @@ mod tests {
     fn test_mempool_add_transaction_invalid_signature() {
         let db_dir = TempDir::new().unwrap();
         let db_path = db_dir.path().to_str().unwrap();
-        let mempool = Mempool::new(100, 1000, db_path, 10, 60);
+        let mempool = Mempool::new(100, 1000, db_path);
         let sender: Address = [1u8; 32].into();
         let recipient: Address = [2u8; 32].into();
         let sec_bytes = &[1u8; SECRET_KEY_LENGTH];
@@ -168,7 +168,7 @@ mod tests {
         // Create a transaction with an amount greater than the account balance
         let db_dir = TempDir::new().unwrap();
         let db_path = db_dir.path().to_str().unwrap();
-        let mempool = Mempool::new(100, 1000, db_path, 10, 60);
+        let mempool = Mempool::new(100, 1000, db_path);
         let sender: Address = [1u8; 32].into();
         let recipient: Address = [2u8; 32].into();
         let sec_bytes = &[1u8; SECRET_KEY_LENGTH];
@@ -189,57 +189,10 @@ mod tests {
     }
 
     #[test]
-    fn test_mempool_add_transaction_rate_limit_exceeded() {
-        let db_dir = TempDir::new().unwrap();
-        let db_path = db_dir.path().to_str().unwrap();
-        let mempool = Mempool::new(100, 1000, db_path, 2, 10); // Set rate limit to 2 transactions within 10 seconds
-
-        let sender: Address = [1u8; 32].into();
-        let recipient: Address = [2u8; 32].into();
-        let sec_bytes = &[1u8; SECRET_KEY_LENGTH];
-        let signing_key = SigningKey::from_bytes(sec_bytes);
-        create_account(sender, 5000, db_path);
-
-        let transaction1 = Transaction {
-            sender: sender.clone(),
-            recipient: recipient.clone(),
-            amount: 10,
-            gas: 100,
-            signature: sign(sender.clone(), recipient.clone(), 10, &signing_key),
-            verifying_key: signing_key.verifying_key(),
-        };
-
-        let transaction2 = Transaction {
-            sender: sender.clone(),
-            recipient: recipient.clone(),
-            amount: 5,
-            gas: 50,
-            signature: sign(sender.clone(), recipient.clone(), 5, &signing_key),
-            verifying_key: signing_key.verifying_key(),
-        };
-
-        let transaction3 = Transaction {
-            sender: sender.clone(),
-            recipient: recipient.clone(),
-            amount: 3,
-            gas: 30,
-            signature: sign(sender.clone(), recipient.clone(), 3, &signing_key),
-            verifying_key: signing_key.verifying_key(),
-        };
-
-        assert!(mempool.add_transaction(transaction1.clone()).is_ok());
-        assert!(mempool.add_transaction(transaction2.clone()).is_ok());
-        assert_eq!(
-            mempool.add_transaction(transaction3.clone()).err().unwrap().to_string(),
-            "Rate limit exceeded for the sender"
-        );
-    }
-
-    #[test]
     fn test_mempool_remove_transaction() {
         let db_dir = TempDir::new().unwrap();
         let db_path = db_dir.path().to_str().unwrap();
-        let mempool = Mempool::new(100, 1000, db_path, 10, 60);
+        let mempool = Mempool::new(100, 1000, db_path);
         let sender: Address = [1u8; 32].into();
         let recipient: Address = [2u8; 32].into();
         let sec_bytes = &[1u8; SECRET_KEY_LENGTH];
@@ -263,7 +216,7 @@ mod tests {
     fn test_mempool_get_transactions() {
         let db_dir = TempDir::new().unwrap();
         let db_path = db_dir.path().to_str().unwrap();
-        let mempool = Mempool::new(100, 1000, db_path, 10, 60);
+        let mempool = Mempool::new(100, 1000, db_path);
         let sender1: Address = [1u8; 32].into();
         let recipient1: Address = [2u8; 32].into();
         let sec_bytes1 = &[1u8; SECRET_KEY_LENGTH];

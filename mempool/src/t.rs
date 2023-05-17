@@ -2,12 +2,10 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use ed25519_dalek::{VerifyingKey, Signature};
 use sha2::{Digest, Sha512};
-use primitives::{Address, Balance, MemPoolSize, TimeStamp};
+use primitives::{Address, Balance, MemPoolSize};
 use account::account_state::AccountState;
 use anyhow::{Error, anyhow};
 use std::time::{SystemTime, UNIX_EPOCH};
-
-mod tests;
 
 #[derive(Debug, Clone, PartialEq)]
 struct Transaction {
@@ -32,17 +30,17 @@ impl Transaction {
 }
 
 struct Mempool<'a> {
-    transactions: Mutex<HashMap<Address, HashMap<TimeStamp, Vec<Transaction>>>>, // Add a timestamp to each transaction
+    transactions: Mutex<HashMap<Address, (Transaction, u64)>>, // Add a timestamp to each transaction
     max_size: MemPoolSize,
     gas_limit: Balance,
     db_path: &'a str,
-    rate_limit: usize,              // Number of transactions allowed within a time frame
-    time_frame_seconds: TimeStamp,  // Time frame in seconds
+    rate_limit: u64,       // Number of transactions allowed within a time frame
+    time_frame_seconds: u64,  // Time frame in seconds
 }
 
 impl<'a> Mempool<'a> {
     #[allow(dead_code)]
-    fn new(max_size: MemPoolSize, gas_limit: Balance, db_path: &'a str, rate_limit: usize, time_frame_seconds: TimeStamp) -> Self {
+    fn new(max_size: MemPoolSize, gas_limit: Balance, db_path: &'a str, rate_limit: u64, time_frame_seconds: u64) -> Self {
         Mempool {
             transactions: Mutex::new(HashMap::new()),
             max_size,
@@ -89,33 +87,20 @@ impl<'a> Mempool<'a> {
 
         // Check if the sender has exceeded the rate limit within the time frame
         let current_time = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
-
-        // Retrieve the transactions for the sender from the mempool within the time frame
-        let entries: HashMap<TimeStamp, Vec<Transaction>> = match mempool.get(&transaction.sender) {
-            Some(sender_transactions) => {
-                sender_transactions
-                    .clone()
-                    .into_iter()
-                    .filter(|(timestamp, _)| *timestamp >= (current_time - self.time_frame_seconds))
-                    .collect()
-            }
-            None => HashMap::new(), // No transactions for the sender, so an empty HashMap
-        };
-
-        // Calculate the sender's transaction count
-        let sender_transaction_count = entries.values().flatten().count();
+        let sender_transactions = mempool.entry(transaction.sender.clone()).or_insert((transaction, current_time));
+        let sender_transaction_count = mempool.values().filter(|(tx, timestamp)| {
+            *timestamp >= &(current_time - self.time_frame_seconds) && tx.sender == transaction.sender
+        }).count();
 
         if sender_transaction_count >= self.rate_limit {
             return Err(anyhow!("Rate limit exceeded for the sender"));
         }
 
-        let entry = mempool
-            .entry(transaction.sender.clone())
-            .or_insert_with(HashMap::new)
-            .entry(current_time)
-            .or_insert_with(Vec::new);
         // Update the transaction timestamp for the sender
-        entry.push(transaction);
+        sender_transactions.1 = current_time;
+
+        // Add the transaction to the mempool
+        mempool.insert(transaction.sender.clone(), (transaction, current_time));
 
         Ok(())
     }
@@ -127,24 +112,6 @@ impl<'a> Mempool<'a> {
     #[allow(dead_code)]
     fn get_transactions(&self) -> Vec<Transaction> {
         let mempool = self.transactions.lock().unwrap();
-        mempool.values().flat_map(|transactions_by_timestamp| {
-            transactions_by_timestamp
-                .values()
-                .flatten()
-                .cloned()
-        }).collect()
-    }
-    #[allow(dead_code)]
-    fn get_transactions_by_address(&self, address: Address) -> Vec<Transaction> {
-        let mempool = self.transactions.lock().unwrap();
-        if let Some(transactions_by_timestamp) = mempool.get(&address) {
-            transactions_by_timestamp
-                .values()
-                .flatten()
-                .cloned()
-                .collect()
-        } else {
-            Vec::new()
-        }
+        mempool.values().map(|(tx, _)| tx.clone()).collect()
     }
 }
