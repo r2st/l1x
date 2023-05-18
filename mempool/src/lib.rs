@@ -112,13 +112,13 @@ impl<'a> Mempool<'a> {
             return Err(anyhow!("Rate limit exceeded for the sender"));
         }
 
+        // Update the transaction timestamp with current_time
         transaction.timestamp = current_time;
         let entry = mempool
             .entry(transaction.sender.clone())
             .or_insert_with(HashMap::new)
             .entry(current_time)
             .or_insert_with(Vec::new);
-        // Update the transaction timestamp for the sender
         entry.push(transaction);
 
         Ok(())
