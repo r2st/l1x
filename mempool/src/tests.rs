@@ -315,7 +315,7 @@ mod tests {
     fn test_mempool_remove_expired_transactions() {
         let db_dir = TempDir::new().unwrap();
         let db_path = db_dir.path().to_str().unwrap();
-        let expiration_seconds: TimeStamp = 2; // Set expiration time to 60 seconds
+        let expiration_seconds: TimeStamp = 2; // Set expiration time to 2 seconds
 
         // Create a new mempool with expiration time and rate limit
         let mempool = Mempool::new(100, 1000, db_path, 10, 60, expiration_seconds);
