@@ -15,9 +15,10 @@ struct Transaction {
     recipient: Address,
     amount: Balance,
     gas: Balance,
+    fee: Balance,               // Add a fee field to the transaction
     signature: Signature,
     verifying_key: VerifyingKey,
-    timestamp: TimeStamp, // Add a timestamp to each transaction
+    timestamp: TimeStamp,       // Add a timestamp to each transaction
 }
 
 impl Transaction {
@@ -34,6 +35,7 @@ impl Transaction {
 
 struct Mempool<'a> {
     transactions: Mutex<HashMap<Address, HashMap<TimeStamp, Vec<Transaction>>>>,
+    transactions_priority: Mutex<Vec<Transaction>>,  // Use a vector to maintain transactions priority in the mempool
     max_size: MemPoolSize,
     gas_limit: Balance,
     db_path: &'a str,
@@ -47,6 +49,7 @@ impl<'a> Mempool<'a> {
     fn new(max_size: MemPoolSize, gas_limit: Balance, db_path: &'a str, rate_limit: usize, time_frame_seconds: TimeStamp, expiration_seconds: TimeStamp) -> Self {
         Mempool {
             transactions: Mutex::new(HashMap::new()),
+            transactions_priority: Mutex::new(Vec::new()),
             max_size,
             gas_limit,
             db_path,
@@ -58,6 +61,7 @@ impl<'a> Mempool<'a> {
     #[allow(dead_code)]
     fn add_transaction(&self, mut transaction: Transaction) -> Result<(), Error> {
         let mut mempool = self.transactions.lock().unwrap();
+        let mut mempool_priority = self.transactions_priority.lock().unwrap();
 
         // Check if the mempool is full
         if mempool.len() >= self.max_size {
@@ -119,7 +123,16 @@ impl<'a> Mempool<'a> {
             .or_insert_with(HashMap::new)
             .entry(current_time)
             .or_insert_with(Vec::new);
-        entry.push(transaction);
+        entry.push(transaction.clone());
+
+        // Determine the insertion position based on fee (higher fee first)
+        let insertion_pos = mempool_priority
+            .iter()
+            .position(|tx| tx.fee < transaction.fee)
+            .unwrap_or_else(|| mempool.len()-1);
+
+        // Insert the transaction at the determined position
+        mempool_priority.insert(insertion_pos, transaction);
 
         Ok(())
     }
@@ -137,6 +150,11 @@ impl<'a> Mempool<'a> {
                 .flatten()
                 .cloned()
         }).collect()
+    }
+    #[allow(dead_code)]
+    fn get_transactions_priority(&self) -> Vec<Transaction> {
+        let mempool = self.transactions_priority.lock().unwrap();
+        mempool.clone()
     }
     #[allow(dead_code)]
     fn get_transactions_by_address(&self, address: Address) -> Vec<Transaction> {

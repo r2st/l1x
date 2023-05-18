@@ -45,6 +45,7 @@ mod tests {
             recipient: recipient.clone(),
             amount: 10,
             gas: 100,
+            fee: 100,
             signature: sign(sender.clone(), recipient.clone(), 10, &signing_key),
             verifying_key: signing_key.verifying_key(),
             timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
@@ -66,6 +67,7 @@ mod tests {
             recipient: recipient.clone(),
             amount: 10,
             gas: 100,
+            fee: 100,
             signature: sign(sender.clone(), recipient.clone(), 10, &signing_key),
             verifying_key: signing_key.verifying_key(),
             timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
@@ -91,6 +93,7 @@ mod tests {
             recipient: recipient1.clone(),
             amount: 10,
             gas: 100,
+            fee: 100,
             signature: sign(sender1.clone(), recipient1.clone(), 10, &signing_key1),
             verifying_key: signing_key1.verifying_key(),
             timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
@@ -105,6 +108,7 @@ mod tests {
             recipient: recipient2.clone(),
             amount: 5,
             gas: 50,
+            fee: 100,
             signature: sign(sender2.clone(), recipient2.clone(), 10, &signing_key2),
             verifying_key: signing_key2.verifying_key(),
             timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
@@ -132,6 +136,7 @@ mod tests {
             recipient: recipient.clone(),
             amount: 10,
             gas: 2000, // exceeds gas limit
+            fee: 100,
             signature: sign(sender.clone(), recipient.clone(), 10, &signing_key),
             verifying_key: signing_key.verifying_key(),
             timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
@@ -159,6 +164,7 @@ mod tests {
             recipient: recipient.clone(),
             amount: 10,
             gas: 100,
+            fee: 100,
             signature: sign(sender.clone(), recipient.clone(), 10, &signing_key1),
             verifying_key: signing_key.verifying_key(),
             timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
@@ -185,6 +191,7 @@ mod tests {
             recipient: recipient.clone(),
             amount: 10000,
             gas: 100,
+            fee: 100,
             signature: sign(sender.clone(), recipient.clone(), 10000, &signing_key),
             verifying_key: signing_key.verifying_key(),
             timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
@@ -212,6 +219,7 @@ mod tests {
             recipient: recipient.clone(),
             amount: 10,
             gas: 100,
+            fee: 100,
             signature: sign(sender.clone(), recipient.clone(), 10, &signing_key),
             verifying_key: signing_key.verifying_key(),
             timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
@@ -222,6 +230,7 @@ mod tests {
             recipient: recipient.clone(),
             amount: 5,
             gas: 50,
+            fee: 100,
             signature: sign(sender.clone(), recipient.clone(), 5, &signing_key),
             verifying_key: signing_key.verifying_key(),
             timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
@@ -232,6 +241,7 @@ mod tests {
             recipient: recipient.clone(),
             amount: 3,
             gas: 30,
+            fee: 100,
             signature: sign(sender.clone(), recipient.clone(), 3, &signing_key),
             verifying_key: signing_key.verifying_key(),
             timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
@@ -260,6 +270,7 @@ mod tests {
             recipient: recipient.clone(),
             amount: 10,
             gas: 100,
+            fee: 100,
             signature: sign(sender.clone(), recipient.clone(), 10, &signing_key),
             verifying_key: signing_key.verifying_key(),
             timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
@@ -285,6 +296,7 @@ mod tests {
             recipient: recipient1.clone(),
             amount: 10,
             gas: 100,
+            fee: 100,
             signature: sign(sender1.clone(), recipient1.clone(), 10, &signing_key1),
             verifying_key: signing_key1.verifying_key(),
             timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
@@ -299,6 +311,7 @@ mod tests {
             recipient: recipient2.clone(),
             amount: 5,
             gas: 50,
+            fee: 100,
             signature: sign(sender2.clone(), recipient2.clone(), 5, &signing_key2),
             verifying_key: signing_key2.verifying_key(),
             timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
@@ -331,6 +344,7 @@ mod tests {
             recipient: recipient.clone(),
             amount: 10,
             gas: 100,
+            fee: 100,
             signature: sign(sender.clone(), recipient.clone(), 10, &signing_key),
             verifying_key: signing_key.verifying_key(),
             timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
@@ -346,4 +360,64 @@ mod tests {
         // Verify that the transaction is removed from the mempool
         assert!(mempool.get_transactions().is_empty());
     }
+
+    #[test]
+    fn test_mempool_transactions_priority() {
+        let db_dir = tempfile::tempdir().unwrap();
+        let db_path = db_dir.path().to_str().unwrap();
+        let mempool = Mempool::new(100, 1000, db_path, 10, 3600, 600);
+        let sender: Address = [1u8; 32].into();
+        let recipient: Address = [2u8; 32].into();
+        let sec_bytes = &[1u8; SECRET_KEY_LENGTH];
+        let signing_key = SigningKey::from_bytes(sec_bytes);
+        create_account(sender, 5000, db_path);
+        // Add transactions with different fees
+        let transactions = vec![
+            Transaction {
+                sender: sender.clone(),
+                recipient: recipient.clone(),
+                amount: 10,
+                gas: 100,
+                fee: 50,  // Low fee
+                signature: sign(sender.clone(), recipient.clone(), 10, &signing_key),
+                verifying_key: signing_key.verifying_key(),
+                timestamp: 0,
+            },
+            Transaction {
+                sender: sender.clone(),
+                recipient: recipient.clone(),
+                amount: 20,
+                gas: 200,
+                fee: 100,  // Medium fee
+                signature: sign(sender.clone(), recipient.clone(), 20, &signing_key),
+                verifying_key: signing_key.verifying_key(),
+                timestamp: 0,
+            },
+            Transaction {
+                sender: sender.clone(),
+                recipient: recipient.clone(),
+                amount: 30,
+                gas: 300,
+                fee: 200,  // High fee
+                signature: sign(sender.clone(), recipient.clone(), 30, &signing_key),
+                verifying_key: signing_key.verifying_key(),
+                timestamp: 0,
+            },
+        ];
+
+        // Add transactions to the mempool
+        for transaction in transactions {
+            mempool.add_transaction(transaction).unwrap();
+        }
+
+        // Retrieve the transactions from the mempool
+        let mempool_transactions = mempool.get_transactions_priority();
+
+        // Verify the order of transactions in the transactions_priority vector
+        assert_eq!(mempool_transactions.len(), 3);
+        assert_eq!(mempool_transactions[0].fee, 200);  // Highest fee
+        assert_eq!(mempool_transactions[1].fee, 100);  // Medium fee
+        assert_eq!(mempool_transactions[2].fee, 50);   // Lowest fee
+    }
 }
+
