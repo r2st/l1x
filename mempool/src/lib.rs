@@ -17,6 +17,7 @@ struct Transaction {
     gas: Balance,
     signature: Signature,
     verifying_key: VerifyingKey,
+    timestamp: TimeStamp, // Add a timestamp to each transaction
 }
 
 impl Transaction {
@@ -32,17 +33,18 @@ impl Transaction {
 }
 
 struct Mempool<'a> {
-    transactions: Mutex<HashMap<Address, HashMap<TimeStamp, Vec<Transaction>>>>, // Add a timestamp to each transaction
+    transactions: Mutex<HashMap<Address, HashMap<TimeStamp, Vec<Transaction>>>>,
     max_size: MemPoolSize,
     gas_limit: Balance,
     db_path: &'a str,
     rate_limit: usize,              // Number of transactions allowed within a time frame
     time_frame_seconds: TimeStamp,  // Time frame in seconds
+    expiration_seconds: TimeStamp,  // Expiration time in seconds
 }
 
 impl<'a> Mempool<'a> {
     #[allow(dead_code)]
-    fn new(max_size: MemPoolSize, gas_limit: Balance, db_path: &'a str, rate_limit: usize, time_frame_seconds: TimeStamp) -> Self {
+    fn new(max_size: MemPoolSize, gas_limit: Balance, db_path: &'a str, rate_limit: usize, time_frame_seconds: TimeStamp, expiration_seconds: TimeStamp) -> Self {
         Mempool {
             transactions: Mutex::new(HashMap::new()),
             max_size,
@@ -50,10 +52,11 @@ impl<'a> Mempool<'a> {
             db_path,
             rate_limit,
             time_frame_seconds,
+            expiration_seconds,
         }
     }
     #[allow(dead_code)]
-    fn add_transaction(&self, transaction: Transaction) -> Result<(), Error> {
+    fn add_transaction(&self, mut transaction: Transaction) -> Result<(), Error> {
         let mut mempool = self.transactions.lock().unwrap();
 
         // Check if the mempool is full
@@ -109,6 +112,7 @@ impl<'a> Mempool<'a> {
             return Err(anyhow!("Rate limit exceeded for the sender"));
         }
 
+        transaction.timestamp = current_time;
         let entry = mempool
             .entry(transaction.sender.clone())
             .or_insert_with(HashMap::new)
@@ -146,5 +150,16 @@ impl<'a> Mempool<'a> {
         } else {
             Vec::new()
         }
+    }
+    #[allow(dead_code)]
+    fn remove_expired_transactions(&self) {
+        let mut mempool = self.transactions.lock().unwrap();
+        let current_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+        mempool.retain(|_sender, transactions_by_timestamp| {
+            transactions_by_timestamp.retain(|timestamp, _transactions| {
+                *timestamp >= current_time - self.expiration_seconds
+            });
+            !transactions_by_timestamp.is_empty()
+        });
     }
 }

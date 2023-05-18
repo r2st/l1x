@@ -34,7 +34,7 @@ mod tests {
     fn test_mempool_add_transaction() {
         let db_dir = TempDir::new().unwrap();
         let db_path = db_dir.path().to_str().unwrap();
-        let mempool = Mempool::new(100, 1000, db_path, 10, 60);
+        let mempool = Mempool::new(100, 1000, db_path, 10, 60, 60);
         let sender: Address = [1u8; 32].into();
         let recipient: Address = [2u8; 32].into();
         let sec_bytes = &[1u8; SECRET_KEY_LENGTH];
@@ -47,6 +47,7 @@ mod tests {
             gas: 100,
             signature: sign(sender.clone(), recipient.clone(), 10, &signing_key),
             verifying_key: signing_key.verifying_key(),
+            timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
         };
         assert!(mempool.add_transaction(transaction).is_ok());
     }
@@ -55,7 +56,7 @@ mod tests {
     fn test_mempool_add_transaction_invalid_sender() {
         let db_dir = TempDir::new().unwrap();
         let db_path = db_dir.path().to_str().unwrap();
-        let mempool = Mempool::new(100, 1000, db_path, 10, 60);
+        let mempool = Mempool::new(100, 1000, db_path, 10, 60, 60);
         let sender: Address = [1u8; 32].into();
         let recipient: Address = [2u8; 32].into();
         let sec_bytes = &[1u8; SECRET_KEY_LENGTH];
@@ -67,6 +68,7 @@ mod tests {
             gas: 100,
             signature: sign(sender.clone(), recipient.clone(), 10, &signing_key),
             verifying_key: signing_key.verifying_key(),
+            timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
         };
         assert_eq!(
             mempool.add_transaction(transaction).err().unwrap().to_string(),
@@ -78,7 +80,7 @@ mod tests {
     fn test_mempool_add_transaction_full() {
         let db_dir = TempDir::new().unwrap();
         let db_path = db_dir.path().to_str().unwrap();
-        let mempool = Mempool::new(1, 1000, db_path, 10, 60);
+        let mempool = Mempool::new(1, 1000, db_path, 10, 60, 60);
         let sender1: Address = [1u8; 32].into();
         let recipient1: Address = [2u8; 32].into();
         let sec_bytes1 = &[1u8; SECRET_KEY_LENGTH];
@@ -91,6 +93,7 @@ mod tests {
             gas: 100,
             signature: sign(sender1.clone(), recipient1.clone(), 10, &signing_key1),
             verifying_key: signing_key1.verifying_key(),
+            timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
         };
         let sender2: Address = [1u8; 32].into();
         let recipient2: Address = [2u8; 32].into();
@@ -104,6 +107,7 @@ mod tests {
             gas: 50,
             signature: sign(sender2.clone(), recipient2.clone(), 10, &signing_key2),
             verifying_key: signing_key2.verifying_key(),
+            timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
         };
 
         assert!(mempool.add_transaction(transaction1.clone()).is_ok());
@@ -117,7 +121,7 @@ mod tests {
     fn test_mempool_add_transaction_gas_exceeds_limit() {
         let db_dir = TempDir::new().unwrap();
         let db_path = db_dir.path().to_str().unwrap();
-        let mempool = Mempool::new(100, 1000, db_path, 10, 60);
+        let mempool = Mempool::new(100, 1000, db_path, 10, 60, 60);
         let sender: Address = [1u8; 32].into();
         let recipient: Address = [2u8; 32].into();
         let sec_bytes = &[1u8; SECRET_KEY_LENGTH];
@@ -130,6 +134,7 @@ mod tests {
             gas: 2000, // exceeds gas limit
             signature: sign(sender.clone(), recipient.clone(), 10, &signing_key),
             verifying_key: signing_key.verifying_key(),
+            timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
         };
         assert_eq!(
             mempool.add_transaction(transaction).err().unwrap().to_string(),
@@ -141,7 +146,7 @@ mod tests {
     fn test_mempool_add_transaction_invalid_signature() {
         let db_dir = TempDir::new().unwrap();
         let db_path = db_dir.path().to_str().unwrap();
-        let mempool = Mempool::new(100, 1000, db_path, 10, 60);
+        let mempool = Mempool::new(100, 1000, db_path, 10, 60, 60);
         let sender: Address = [1u8; 32].into();
         let recipient: Address = [2u8; 32].into();
         let sec_bytes = &[1u8; SECRET_KEY_LENGTH];
@@ -156,6 +161,7 @@ mod tests {
             gas: 100,
             signature: sign(sender.clone(), recipient.clone(), 10, &signing_key1),
             verifying_key: signing_key.verifying_key(),
+            timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
         };
         assert_eq!(
             mempool.add_transaction(transaction).err().unwrap().to_string(),
@@ -168,7 +174,7 @@ mod tests {
         // Create a transaction with an amount greater than the account balance
         let db_dir = TempDir::new().unwrap();
         let db_path = db_dir.path().to_str().unwrap();
-        let mempool = Mempool::new(100, 1000, db_path, 10, 60);
+        let mempool = Mempool::new(100, 1000, db_path, 10, 60, 60);
         let sender: Address = [1u8; 32].into();
         let recipient: Address = [2u8; 32].into();
         let sec_bytes = &[1u8; SECRET_KEY_LENGTH];
@@ -181,6 +187,7 @@ mod tests {
             gas: 100,
             signature: sign(sender.clone(), recipient.clone(), 10000, &signing_key),
             verifying_key: signing_key.verifying_key(),
+            timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
         };
         assert_eq!(
             mempool.add_transaction(transaction).err().unwrap().to_string(),
@@ -192,7 +199,7 @@ mod tests {
     fn test_mempool_add_transaction_rate_limit_exceeded() {
         let db_dir = TempDir::new().unwrap();
         let db_path = db_dir.path().to_str().unwrap();
-        let mempool = Mempool::new(100, 1000, db_path, 2, 10); // Set rate limit to 2 transactions within 10 seconds
+        let mempool = Mempool::new(100, 1000, db_path, 2, 10, 60); // Set rate limit to 2 transactions within 10 seconds
 
         let sender: Address = [1u8; 32].into();
         let recipient: Address = [2u8; 32].into();
@@ -207,6 +214,7 @@ mod tests {
             gas: 100,
             signature: sign(sender.clone(), recipient.clone(), 10, &signing_key),
             verifying_key: signing_key.verifying_key(),
+            timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
         };
 
         let transaction2 = Transaction {
@@ -216,6 +224,7 @@ mod tests {
             gas: 50,
             signature: sign(sender.clone(), recipient.clone(), 5, &signing_key),
             verifying_key: signing_key.verifying_key(),
+            timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
         };
 
         let transaction3 = Transaction {
@@ -225,6 +234,7 @@ mod tests {
             gas: 30,
             signature: sign(sender.clone(), recipient.clone(), 3, &signing_key),
             verifying_key: signing_key.verifying_key(),
+            timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
         };
 
         assert!(mempool.add_transaction(transaction1.clone()).is_ok());
@@ -239,7 +249,7 @@ mod tests {
     fn test_mempool_remove_transaction() {
         let db_dir = TempDir::new().unwrap();
         let db_path = db_dir.path().to_str().unwrap();
-        let mempool = Mempool::new(100, 1000, db_path, 10, 60);
+        let mempool = Mempool::new(100, 1000, db_path, 10, 60, 60);
         let sender: Address = [1u8; 32].into();
         let recipient: Address = [2u8; 32].into();
         let sec_bytes = &[1u8; SECRET_KEY_LENGTH];
@@ -252,6 +262,7 @@ mod tests {
             gas: 100,
             signature: sign(sender.clone(), recipient.clone(), 10, &signing_key),
             verifying_key: signing_key.verifying_key(),
+            timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
         };
         assert!(mempool.add_transaction(transaction).is_ok());
         mempool.remove_transaction(&sender);
@@ -263,7 +274,7 @@ mod tests {
     fn test_mempool_get_transactions() {
         let db_dir = TempDir::new().unwrap();
         let db_path = db_dir.path().to_str().unwrap();
-        let mempool = Mempool::new(100, 1000, db_path, 10, 60);
+        let mempool = Mempool::new(100, 1000, db_path, 10, 60, 60);
         let sender1: Address = [1u8; 32].into();
         let recipient1: Address = [2u8; 32].into();
         let sec_bytes1 = &[1u8; SECRET_KEY_LENGTH];
@@ -276,6 +287,7 @@ mod tests {
             gas: 100,
             signature: sign(sender1.clone(), recipient1.clone(), 10, &signing_key1),
             verifying_key: signing_key1.verifying_key(),
+            timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
         };
         let sender2: Address = [3u8; 32].into();
         let recipient2: Address = [4u8; 32].into();
@@ -289,6 +301,7 @@ mod tests {
             gas: 50,
             signature: sign(sender2.clone(), recipient2.clone(), 5, &signing_key2),
             verifying_key: signing_key2.verifying_key(),
+            timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
         };
         assert!(mempool.add_transaction(transaction1.clone()).is_ok());
         assert!(mempool.add_transaction(transaction2.clone()).is_ok());
@@ -296,5 +309,41 @@ mod tests {
         assert_eq!(transactions.len(), 2);
         assert!(transactions.contains(&transaction1));
         assert!(transactions.contains(&transaction2));
+    }
+
+    #[test]
+    fn test_mempool_remove_expired_transactions() {
+        let db_dir = TempDir::new().unwrap();
+        let db_path = db_dir.path().to_str().unwrap();
+        let expiration_seconds: TimeStamp = 2; // Set expiration time to 60 seconds
+
+        // Create a new mempool with expiration time and rate limit
+        let mempool = Mempool::new(100, 1000, db_path, 10, 60, expiration_seconds);
+
+        let sender: Address = [1u8; 32].into();
+        let recipient: Address = [2u8; 32].into();
+        let sec_bytes = &[1u8; SECRET_KEY_LENGTH];
+        let signing_key = SigningKey::from_bytes(sec_bytes);
+        create_account(sender, 5000, db_path);
+        // Add a transaction to the mempool
+        let transaction = Transaction {
+            sender: sender.clone(),
+            recipient: recipient.clone(),
+            amount: 10,
+            gas: 100,
+            signature: sign(sender.clone(), recipient.clone(), 10, &signing_key),
+            verifying_key: signing_key.verifying_key(),
+            timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+        };
+        assert!(mempool.add_transaction(transaction.clone()).is_ok());
+
+        // Wait for the expiration time to pass
+        std::thread::sleep(std::time::Duration::from_secs(expiration_seconds + 1));
+
+        // Call remove_expired_transactions
+        mempool.remove_expired_transactions();
+
+        // Verify that the transaction is removed from the mempool
+        assert!(mempool.get_transactions().is_empty());
     }
 }
