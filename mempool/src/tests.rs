@@ -41,6 +41,7 @@ mod tests {
         let signing_key = SigningKey::from_bytes(sec_bytes);
         create_account(sender, 5000, db_path);
         let transaction = Transaction {
+            nonce: 1,
             sender: sender.clone(),
             recipient: recipient.clone(),
             amount: 10,
@@ -63,6 +64,7 @@ mod tests {
         let sec_bytes = &[1u8; SECRET_KEY_LENGTH];
         let signing_key = SigningKey::from_bytes(sec_bytes);
         let transaction = Transaction {
+            nonce: 1,
             sender: sender.clone(),
             recipient: recipient.clone(),
             amount: 10,
@@ -89,6 +91,7 @@ mod tests {
         let signing_key1 = SigningKey::from_bytes(sec_bytes1);
         create_account(sender1, 5000, db_path);
         let transaction1 = Transaction {
+            nonce: 1,
             sender: sender1.clone(),
             recipient: recipient1.clone(),
             amount: 10,
@@ -104,6 +107,7 @@ mod tests {
         let signing_key2 = SigningKey::from_bytes(sec_bytes2);
         create_account(sender2, 5000, db_path);
         let transaction2 = Transaction {
+            nonce: 1,
             sender: sender2.clone(),
             recipient: recipient2.clone(),
             amount: 5,
@@ -132,6 +136,7 @@ mod tests {
         let signing_key = SigningKey::from_bytes(sec_bytes);
         create_account(sender, 5000, db_path);
         let transaction = Transaction {
+            nonce: 1,
             sender: sender.clone(),
             recipient: recipient.clone(),
             amount: 10,
@@ -160,6 +165,7 @@ mod tests {
         let signing_key1 = SigningKey::from_bytes(sec_bytes1);
         create_account(sender, 5000, db_path);
         let transaction = Transaction {
+            nonce: 1,
             sender: sender.clone(),
             recipient: recipient.clone(),
             amount: 10,
@@ -187,6 +193,7 @@ mod tests {
         let signing_key = SigningKey::from_bytes(sec_bytes);
         create_account(sender, 5000, db_path);
         let transaction = Transaction {
+            nonce: 1,
             sender: sender.clone(),
             recipient: recipient.clone(),
             amount: 10000,
@@ -215,6 +222,7 @@ mod tests {
         create_account(sender, 5000, db_path);
 
         let transaction1 = Transaction {
+            nonce: 1,
             sender: sender.clone(),
             recipient: recipient.clone(),
             amount: 10,
@@ -226,6 +234,7 @@ mod tests {
         };
 
         let transaction2 = Transaction {
+            nonce: 2,
             sender: sender.clone(),
             recipient: recipient.clone(),
             amount: 5,
@@ -237,6 +246,7 @@ mod tests {
         };
 
         let transaction3 = Transaction {
+            nonce: 3,
             sender: sender.clone(),
             recipient: recipient.clone(),
             amount: 3,
@@ -266,6 +276,7 @@ mod tests {
         let signing_key = SigningKey::from_bytes(sec_bytes);
         create_account(sender, 5000, db_path);
         let transaction = Transaction {
+            nonce: 1,
             sender: sender.clone(),
             recipient: recipient.clone(),
             amount: 10,
@@ -292,6 +303,7 @@ mod tests {
         let signing_key1 = SigningKey::from_bytes(sec_bytes1);
         create_account(sender1, 5000, db_path);
         let transaction1 = Transaction {
+            nonce: 1,
             sender: sender1.clone(),
             recipient: recipient1.clone(),
             amount: 10,
@@ -307,6 +319,7 @@ mod tests {
         let signing_key2 = SigningKey::from_bytes(sec_bytes2);
         create_account(sender2, 5000, db_path);
         let transaction2 = Transaction {
+            nonce: 1,
             sender: sender2.clone(),
             recipient: recipient2.clone(),
             amount: 5,
@@ -340,6 +353,7 @@ mod tests {
         create_account(sender, 5000, db_path);
         // Add a transaction to the mempool
         let transaction = Transaction {
+            nonce: 1,
             sender: sender.clone(),
             recipient: recipient.clone(),
             amount: 10,
@@ -374,6 +388,7 @@ mod tests {
         // Add transactions with different fees
         let transactions = vec![
             Transaction {
+            nonce: 1,
                 sender: sender.clone(),
                 recipient: recipient.clone(),
                 amount: 10,
@@ -384,6 +399,7 @@ mod tests {
                 timestamp: 0,
             },
             Transaction {
+                nonce: 2,
                 sender: sender.clone(),
                 recipient: recipient.clone(),
                 amount: 20,
@@ -394,6 +410,7 @@ mod tests {
                 timestamp: 0,
             },
             Transaction {
+                nonce: 3,
                 sender: sender.clone(),
                 recipient: recipient.clone(),
                 amount: 30,
@@ -419,5 +436,58 @@ mod tests {
         assert_eq!(mempool_transactions[1].fee, 100);  // Medium fee
         assert_eq!(mempool_transactions[2].fee, 50);   // Lowest fee
     }
+
+    #[test]
+    fn test_transaction_conflicts() {
+        let db_dir = tempfile::tempdir().unwrap();
+        let db_path = db_dir.path().to_str().unwrap();
+        let mempool = Mempool::new(100, 1000, db_path, 10, 3600, 600);
+        let sender: Address = [1u8; 32].into();
+        let recipient: Address = [2u8; 32].into();
+        let sec_bytes = &[1u8; SECRET_KEY_LENGTH];
+        let signing_key = SigningKey::from_bytes(sec_bytes);
+        create_account(sender, 5000, db_path);
+        let nonce = 1;
+        let conflicting_tx1 = Transaction {
+            nonce,
+            sender: sender.clone(),
+            recipient: recipient.clone(),
+            amount: 100,
+            gas: 10,
+            fee: 5,
+            signature: sign(sender.clone(), recipient.clone(), 100, &signing_key),
+            verifying_key: signing_key.verifying_key(),
+            timestamp: 0,
+        };
+        let conflicting_tx2 = Transaction {
+            nonce,
+            sender: sender.clone(),
+            recipient: recipient.clone(),
+            amount: 200,
+            gas: 20,
+            fee: 10,
+            signature: sign(sender.clone(), recipient.clone(), 200, &signing_key),
+            verifying_key: signing_key.verifying_key(),
+            timestamp: 0,
+        };
+
+        // Add the conflicting transactions to the mempool
+        mempool.add_transaction(conflicting_tx1.clone()).unwrap();
+        mempool.add_transaction(conflicting_tx2.clone()).unwrap();
+
+        // Check that only one of the conflicting transactions is present in the mempool
+        let transactions = mempool.get_transactions();
+        assert_eq!(transactions.len(), 1);
+        assert_eq!(transactions[0].amount, conflicting_tx2.amount);
+        assert_eq!(transactions[0].gas, conflicting_tx2.gas);
+        assert_eq!(transactions[0].fee, conflicting_tx2.fee);
+
+        let transactions_priority = mempool.get_transactions_priority();
+        assert_eq!(transactions_priority.len(), 1);
+        assert_eq!(transactions_priority[0].amount, conflicting_tx2.amount);
+        assert_eq!(transactions_priority[0].gas, conflicting_tx2.gas);
+        assert_eq!(transactions_priority[0].fee, conflicting_tx2.fee);
+    }
 }
+
 

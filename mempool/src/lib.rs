@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use ed25519_dalek::{VerifyingKey, Signature};
 use sha2::{Digest, Sha512};
-use primitives::{Address, Balance, MemPoolSize, TimeStamp};
+use primitives::{Address, Balance, MemPoolSize, TimeStamp, Nonce};
 use account::account_state::AccountState;
 use anyhow::{Error, anyhow};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -11,6 +11,7 @@ mod tests;
 
 #[derive(Debug, Clone, PartialEq)]
 struct Transaction {
+    nonce: Nonce,
     sender: Address,
     recipient: Address,
     amount: Balance,
@@ -62,7 +63,7 @@ impl<'a> Mempool<'a> {
     fn add_transaction(&self, mut transaction: Transaction) -> Result<(), Error> {
         let mut mempool = self.transactions.lock().unwrap();
         let mut mempool_priority = self.transactions_priority.lock().unwrap();
-
+        
         // Check if the mempool is full
         if mempool.len() >= self.max_size {
             return Err(anyhow!("Mempool is full"));
@@ -116,7 +117,32 @@ impl<'a> Mempool<'a> {
             return Err(anyhow!("Rate limit exceeded for the sender"));
         }
 
-        // Update the transaction timestamp with current_time
+        // Check for conflicts with existing transactions
+        let mut conflicts: Vec<Transaction> = Vec::new();
+
+        mempool_priority.retain(|existing_tx| {
+            if self.has_conflict(existing_tx, &transaction) {
+                conflicts.push(existing_tx.clone());
+                false // Remove the conflicting transaction from the mempool
+            } else {
+                true // Keep the non-conflicting transaction in the mempool
+            }
+        });
+
+        if !conflicts.is_empty() {
+            // Remove conflicting transactions from mempool
+            for conflict in &conflicts {
+                let sender_transactions = mempool.get_mut(&conflict.sender);
+                if let Some(sender_transactions) = sender_transactions {
+                    let timestamp = &conflict.timestamp;
+                    if let Some(transactions_by_timestamp) = sender_transactions.get_mut(timestamp) {
+                        transactions_by_timestamp.retain(|tx| tx.nonce != conflict.nonce);
+                    }
+                }
+            }
+            // Handle conflicts based on transaction fees
+            transaction = self.handle_conflicts(conflicts, transaction);
+        }
         transaction.timestamp = current_time;
         let entry = mempool
             .entry(transaction.sender.clone())
@@ -133,8 +159,21 @@ impl<'a> Mempool<'a> {
 
         // Insert the transaction at the determined position
         mempool_priority.insert(insertion_pos, transaction);
-
         Ok(())
+    }
+    #[allow(dead_code)]
+    fn has_conflict(&self, existing_tx: &Transaction, new_tx: &Transaction) -> bool {
+        existing_tx.sender == new_tx.sender && existing_tx.nonce == new_tx.nonce
+    }
+    #[allow(dead_code)]
+    fn handle_conflicts(&self, conflicts: Vec<Transaction>, new_tx: Transaction) -> Transaction {        
+        let mut transaction = new_tx.clone();
+        for conflict in conflicts {
+            if new_tx.fee < conflict.fee {
+                transaction = conflict.clone()
+            }
+        }
+        transaction
     }
     #[allow(dead_code)]
     fn remove_transaction(&self, sender: &Address) {
