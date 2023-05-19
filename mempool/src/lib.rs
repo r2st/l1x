@@ -117,15 +117,15 @@ impl<'a> Mempool<'a> {
             return Err(anyhow!("Rate limit exceeded for the sender"));
         }
 
-        // Check for conflicts with existing transactions
         let mut conflicts: Vec<Transaction> = Vec::new();
 
+        // Check for conflicts with existing transactions
         mempool_priority.retain(|existing_tx| {
             if self.has_conflict(existing_tx, &transaction) {
                 conflicts.push(existing_tx.clone());
-                false // Remove the conflicting transaction from the mempool
+                false // Remove the conflicting transaction from the mempool_priority
             } else {
-                true // Keep the non-conflicting transaction in the mempool
+                true // Keep the non-conflicting transaction in the mempool_priority
             }
         });
 
